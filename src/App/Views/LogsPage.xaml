@@ -1,0 +1,230 @@
+<Page
+    x:Class="LogDeck.App.Views.LogsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:views="using:LogDeck.App.Views"
+    xmlns:vm="using:LogDeck.App.ViewModels"
+    NavigationCacheMode="Required">
+
+    <Page.Resources>
+        <Style x:Key="CompactListItem" TargetType="ListViewItem">
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Padding" Value="8,0" />
+        </Style>
+        <Style x:Key="ToolbarButton" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="232" MinWidth="200" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="300" MinWidth="240" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" MinWidth="380" />
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ═══ Shared toolbar row ═══ -->
+
+        <!-- Tools: title, show-all toggle, refresh -->
+        <Grid Grid.Row="0" Grid.Column="0" Padding="16,10,8,10" ColumnSpacing="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Tools" Style="{StaticResource SubtitleTextBlockStyle}" VerticalAlignment="Center" />
+            <ToggleButton x:Name="ShowAllToggle" Grid.Column="1" Padding="6" VerticalAlignment="Center"
+                          ToolTipService.ToolTip="Show tools that are not installed"
+                          Click="ShowAll_Click">
+                <FontIcon Glyph="&#xE71D;" FontSize="14" />
+            </ToggleButton>
+            <Button Grid.Column="2" Style="{StaticResource ToolbarButton}" ToolTipService.ToolTip="Refresh"
+                    Click="Refresh_Click">
+                <FontIcon Glyph="&#xE72C;" FontSize="14" />
+            </Button>
+        </Grid>
+
+        <!-- Sources: picker and reveal folder -->
+        <Grid Grid.Row="0" Grid.Column="2" Padding="12,10" ColumnSpacing="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <ComboBox x:Name="SourcePicker" HorizontalAlignment="Stretch" VerticalAlignment="Center"
+                      PlaceholderText="No sources" SelectionChanged="SourcePicker_SelectionChanged">
+                <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SourceItem">
+                        <TextBlock Text="{x:Bind Display}" />
+                    </DataTemplate>
+                </ComboBox.ItemTemplate>
+            </ComboBox>
+            <Button x:Name="RevealSourceButton" Grid.Column="1" Style="{StaticResource ToolbarButton}"
+                    ToolTipService.ToolTip="Open the log folder" Click="RevealSource_Click">
+                <FontIcon Glyph="&#xE838;" FontSize="14" />
+            </Button>
+        </Grid>
+
+        <!-- Viewer: filter, level, live tail, actions -->
+        <Grid Grid.Row="0" Grid.Column="4" Padding="12,10,16,10" ColumnSpacing="8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="FilterBox" PlaceholderText="Filter lines" VerticalAlignment="Center"
+                     MinWidth="140" TextChanged="FilterBox_TextChanged" />
+            <ComboBox x:Name="LevelPicker" Grid.Column="1" VerticalAlignment="Center" MinWidth="150"
+                      SelectedIndex="0" SelectionChanged="LevelPicker_SelectionChanged">
+                <ComboBoxItem Content="All lines" />
+                <ComboBoxItem Content="Warnings and errors" />
+                <ComboBoxItem Content="Errors only" />
+            </ComboBox>
+            <ToggleButton x:Name="LiveToggle" Grid.Column="2" IsChecked="True" VerticalAlignment="Center"
+                          ToolTipService.ToolTip="Follow new lines as they are written">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <FontIcon Glyph="&#xE768;" FontSize="12" />
+                    <TextBlock Text="Live" />
+                </StackPanel>
+            </ToggleButton>
+            <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4">
+                <Button x:Name="CopyPathButton" Style="{StaticResource ToolbarButton}"
+                        ToolTipService.ToolTip="Copy path" Click="CopyPath_Click">
+                    <FontIcon Glyph="&#xE8C8;" FontSize="14" />
+                </Button>
+                <Button x:Name="RevealButton" Style="{StaticResource ToolbarButton}"
+                        ToolTipService.ToolTip="Reveal in File Explorer" Click="Reveal_Click">
+                    <FontIcon Glyph="&#xEC50;" FontSize="14" />
+                </Button>
+                <Button x:Name="OpenButton" Style="{StaticResource ToolbarButton}"
+                        ToolTipService.ToolTip="Open in editor" Click="Open_Click">
+                    <FontIcon Glyph="&#xE8A7;" FontSize="14" />
+                </Button>
+            </StackPanel>
+        </Grid>
+
+        <MenuFlyoutSeparator Grid.Row="1" Grid.ColumnSpan="5" />
+
+        <!-- ═══ Tools ═══ -->
+        <Grid Grid.Row="2" Grid.Column="0">
+            <ListView x:Name="ToolList" SelectionMode="Single" Padding="0,4"
+                      SelectionChanged="ToolList_SelectionChanged">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ToolItem">
+                        <Grid Padding="4,8" ColumnSpacing="12" Opacity="{x:Bind Opacity}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="{x:Bind Glyph}" FontSize="18" VerticalAlignment="Center"
+                                      Foreground="{ThemeResource AccentTextFillColorPrimaryBrush}" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{x:Bind Subtitle}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+            <views:EmptyStateView x:Name="ToolsEmpty" Visibility="Collapsed" />
+        </Grid>
+
+        <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" Width="1"
+                Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+        <!-- ═══ Sessions, newest first ═══ -->
+        <Grid Grid.Row="2" Grid.Column="2">
+            <ListView x:Name="SessionList" SelectionMode="Single" Padding="0,4"
+                      SelectionChanged="SessionList_SelectionChanged">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SessionItem">
+                        <Grid Padding="4,8" ColumnSpacing="10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="&#xE9D5;" FontSize="16" VerticalAlignment="Center"
+                                      Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="{x:Bind Title}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{x:Bind Subtitle}" FontSize="11" TextTrimming="CharacterEllipsis"
+                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+            <views:EmptyStateView x:Name="SessionsEmpty" Visibility="Collapsed" />
+        </Grid>
+
+        <Border Grid.Row="0" Grid.RowSpan="3" Grid.Column="3" Width="1"
+                Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+
+        <!-- ═══ Viewer ═══ -->
+        <Grid Grid.Row="2" Grid.Column="4"
+              Background="{ThemeResource SystemControlBackgroundChromeMediumLowBrush}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Grid x:Name="ViewerHeader" Padding="16,8" ColumnSpacing="12" Visibility="Collapsed"
+                  BorderThickness="0,0,0,1" BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="ViewerPath" FontFamily="{StaticResource LogFontFamily}" FontSize="12"
+                           IsTextSelectionEnabled="True" TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center" />
+                <TextBlock x:Name="ViewerInfo" Grid.Column="1" FontSize="12" VerticalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            </Grid>
+
+            <ListView x:Name="LineList" Grid.Row="1" SelectionMode="Extended" Padding="0,4,0,8"
+                      ItemContainerStyle="{StaticResource CompactListItem}"
+                      ScrollViewer.HorizontalScrollMode="Disabled">
+                <ListView.KeyboardAccelerators>
+                    <KeyboardAccelerator Key="C" Modifiers="Control" Invoked="CopyLines_Invoked" />
+                </ListView.KeyboardAccelerators>
+                <ListView.ContextFlyout>
+                    <MenuFlyout>
+                        <MenuFlyoutItem Text="Copy selected lines" Click="CopySelected_Click">
+                            <MenuFlyoutItem.Icon>
+                                <FontIcon Glyph="&#xE8C8;" />
+                            </MenuFlyoutItem.Icon>
+                        </MenuFlyoutItem>
+                        <MenuFlyoutItem Text="Copy all shown lines" Click="CopyAll_Click" />
+                    </MenuFlyout>
+                </ListView.ContextFlyout>
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LineItem">
+                        <Grid ColumnSpacing="12" Padding="0,1">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="52" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="{x:Bind NumberText}" TextAlignment="Right"
+                                       FontFamily="{StaticResource LogFontFamily}" FontSize="12"
+                                       Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                            <TextBlock Grid.Column="1" Text="{x:Bind Text}" Foreground="{x:Bind Foreground}"
+                                       FontFamily="{StaticResource LogFontFamily}" FontSize="12"
+                                       TextWrapping="Wrap" />
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+
+            <views:EmptyStateView x:Name="ViewerEmpty" Grid.Row="0" Grid.RowSpan="2" />
+        </Grid>
+    </Grid>
+</Page>

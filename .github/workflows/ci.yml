@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  TZ: 'America/Vancouver'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~\.nuget\packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Build.props', '**/Directory.Packages.props') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore LogDeck.sln
+
+      - name: Build
+        run: dotnet build LogDeck.sln --configuration Release --no-restore --verbosity minimal
+
+      - name: Test
+        run: dotnet test tests/LogDeck.Tests/LogDeck.Tests.csproj --configuration Release --no-restore --verbosity minimal
+
+      # The same publish the release runs, so a change that breaks the installed layout
+      # (resources.pri, the compiled XAML) fails here rather than at release time.
+      - name: Publish x64
+        shell: pwsh
+        run: .\build.ps1 -Arch x64
+
+      - name: Upload x64 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: logdeck-x64
+          path: dist/x64/
+          if-no-files-found: error
+          retention-days: 14

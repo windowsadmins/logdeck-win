@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- LogDeck.exe: the viewer. Installed to C:\Program Files\LogDeck as a self-contained
+       folder: the exe, resources.pri, the compiled XAML and the Windows App SDK runtime. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RuntimeIdentifiers>win-x64;win-arm64</RuntimeIdentifiers>
+    <UseWinUI>true</UseWinUI>
+    <RootNamespace>LogDeck.App</RootNamespace>
+    <AssemblyName>LogDeck</AssemblyName>
+    <Product>LogDeck</Product>
+    <Description>LogDeck</Description>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\LogDeck.ico</ApplicationIcon>
+    <PublishSingleFile>false</PublishSingleFile>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <SelfContained>true</SelfContained>
+    <!-- Never trimmed: WinUI and the clipboard, shell and shortcut calls go through COM
+         interop, which the trimmer cannot see and would break at run time. -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <!-- PriGen needs the VS UWP workload, which a plain SDK machine or CI runner lacks.
+         eng\Publish-AppResources.ps1 generates resources.pri with makepri.exe instead. -->
+    <EnableCoreMrtTooling>false</EnableCoreMrtTooling>
+    <!-- Field-based [ObservableProperty]: the partial-property form fails with the WinUI XAML compiler. -->
+    <NoWarn>$(NoWarn);MVVMTK0045</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.WindowsAppSDK" Version="1.7.250401001" />
+    <PackageReference Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+    <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core\LogDeck.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="Assets\LogDeck.png" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Assets\LogDeck.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

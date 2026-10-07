@@ -58,6 +58,14 @@ public class LogScannerTests
     }
 
     [Fact]
+    public void AMissingFolderIsNotMistakenForAnUnreadableOne()
+    {
+        using var temp = new TempDirectory();
+        Assert.False(LogScanner.HiddenByAccess(Path.Combine(temp.Path, "absent", "logs")));
+        Assert.False(LogScanner.Scan(new LogSource("s", "S", Path.Combine(temp.Path, "absent"), ["*.log"])).PartlyDenied);
+    }
+
+    [Fact]
     public void EmptyFolderIsReportedAsEmpty()
     {
         using var temp = new TempDirectory();

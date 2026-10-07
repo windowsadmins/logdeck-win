@@ -25,9 +25,13 @@ public sealed partial class MainWindow : Window
         var scale = GetDpiForWindow(hwnd) / 96.0;
         var workArea = Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(
             AppWindow.Id, Microsoft.UI.Windowing.DisplayAreaFallback.Nearest).WorkArea;
-        AppWindow.Resize(new Windows.Graphics.SizeInt32(
-            Math.Min((int)(1360 * scale), (int)(workArea.Width * 0.96)),
-            Math.Min((int)(900 * scale), (int)(workArea.Height * 0.96))));
+        var width = Math.Min((int)(1360 * scale), (int)(workArea.Width * 0.96));
+        var height = Math.Min((int)(900 * scale), (int)(workArea.Height * 0.96));
+        // Centred, so a large window on a small screen never opens partly off it.
+        AppWindow.MoveAndResize(new Windows.Graphics.RectInt32(
+            workArea.X + (workArea.Width - width) / 2,
+            workArea.Y + (workArea.Height - height) / 2,
+            width, height));
 
         var iconPath = Path.Combine(AppContext.BaseDirectory, "Assets", "LogDeck.ico");
         AppWindow.SetIcon(iconPath);

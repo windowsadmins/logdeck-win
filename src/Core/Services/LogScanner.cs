@@ -22,7 +22,10 @@ public static class LogScanner
     public static SourceScan Scan(LogSource source, string root)
     {
         if (!Directory.Exists(root))
-            return new SourceScan(source, SourceState.Missing, []);
+        {
+            var hidden = HiddenByAccess(root);
+            return new SourceScan(source, hidden ? SourceState.NeedsAdmin : SourceState.Missing, [], PartlyDenied: hidden);
+        }
 
         var found = new Dictionary<string, LogFileEntry>(StringComparer.OrdinalIgnoreCase);
         var denied = 0;
@@ -76,6 +79,36 @@ public static class LogScanner
         if (files.Count == 0)
             return new SourceScan(source, denied > 0 ? SourceState.NeedsAdmin : SourceState.Empty, files, denied > 0);
         return new SourceScan(source, SourceState.Ready, files, denied > 0);
+    }
+
+    /// <summary>
+    /// Directory.Exists is false both for a folder that is not there and for one inside a
+    /// folder this account may not list (the Intune Management Extension's Logs, under a
+    /// parent readable by administrators only). Tells them apart by listing the nearest
+    /// ancestor that can be seen.
+    /// </summary>
+    public static bool HiddenByAccess(string path)
+    {
+        var child = Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var parent = Path.GetDirectoryName(child);
+        while (parent is not null && !Directory.Exists(parent))
+        {
+            child = parent;
+            parent = Path.GetDirectoryName(parent);
+        }
+        if (parent is null) return false;
+
+        try
+        {
+            // Listing the parent succeeds when access is not the problem: then the folder
+            // simply is not there.
+            using var entries = Directory.EnumerateFileSystemEntries(parent, Path.GetFileName(child)).GetEnumerator();
+            entries.MoveNext();
+            return false;
+        }
+        catch (UnauthorizedAccessException) { return true; }
+        catch (System.Security.SecurityException) { return true; }
+        catch (IOException) { return false; }
     }
 
     private static string RelativeFolder(string root, string directory)

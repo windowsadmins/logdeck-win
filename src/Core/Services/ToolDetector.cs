@@ -25,7 +25,7 @@ public static class ToolDetector
             }
         }
 
-        var hasLogs = module.Sources.Any(s => Directory.Exists(s.ResolvedRoot));
+        var hasLogs = module.Sources.Any(s => Directory.Exists(s.ResolvedRoot) || LogScanner.HiddenByAccess(s.ResolvedRoot));
         return new ToolStatus(found is not null, found, found is null ? null : FileVersion(found), hasLogs);
     }
 

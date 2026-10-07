@@ -355,7 +355,7 @@ public sealed partial class LogsPage : Page
             }
             UpdateInfo(0);
             UpdateViewerEmpty();
-            if (_shown.Count > 0) LineList.ScrollIntoView(_shown[^1]);
+            ScrollToEnd();
         }
         finally
         {
@@ -378,7 +378,7 @@ public sealed partial class LogsPage : Page
         var filter = FilterBox.Text;
         ShowLines(_lines.Where(l => Matches(l, filter, level)));
         UpdateViewerEmpty();
-        if (scrollToEnd && _shown.Count > 0) LineList.ScrollIntoView(_shown[^1]);
+        if (scrollToEnd) ScrollToEnd();
     }
 
     private static bool Matches(LineItem line, string filter, int level)
@@ -386,6 +386,20 @@ public sealed partial class LogsPage : Page
         if (level == 1 && line.Level is not (LineLevel.Error or LineLevel.Warning)) return false;
         if (level == 2 && line.Level is not LineLevel.Error) return false;
         return string.IsNullOrEmpty(filter) || line.Text.Contains(filter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Shows the last line. Queued behind layout: right after ItemsSource changes the list
+    /// has not measured its items yet, and scrolling then lands at the top.
+    /// </summary>
+    private void ScrollToEnd()
+    {
+        if (_shown.Count == 0) return;
+        DispatcherQueue.TryEnqueue(DispatcherQueuePriority.Low, () =>
+        {
+            if (_shown.Count > 0 && ReferenceEquals(LineList.ItemsSource, _shown))
+                LineList.ScrollIntoView(_shown[^1], ScrollIntoViewAlignment.Leading);
+        });
     }
 
     private void ShowLines(IEnumerable<LineItem> lines)

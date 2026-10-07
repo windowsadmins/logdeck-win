@@ -35,9 +35,14 @@ public static class ToolDetector
             return null;
         try
         {
+            // Prefer the file version: some tools stamp the release only there and leave the
+            // product version at 1.0.0.
             var info = FileVersionInfo.GetVersionInfo(path);
-            var version = info.ProductVersion ?? info.FileVersion;
-            return string.IsNullOrWhiteSpace(version) ? null : ReleaseVersion.Display(version);
+            var version = new[] { info.FileVersion, info.ProductVersion }
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .OrderByDescending(v => ReleaseVersion.IsDateVersion(v))
+                .FirstOrDefault();
+            return version is null ? null : ReleaseVersion.Display(version);
         }
         catch
         {

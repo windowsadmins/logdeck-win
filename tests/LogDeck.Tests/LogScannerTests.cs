@@ -20,7 +20,7 @@ public class LogScannerTests
         Assert.Equal(SourceState.Ready, scan.State);
         Assert.Equal(3, scan.Count);
         Assert.Equal(
-            ["2026-10-07 / 1405-login", "2026-10-07 / 0800-boot", "2026-10-06 / 0900-boot"],
+            ["2026-10-07 14:05  ·  login", "2026-10-07 08:00  ·  boot", "2026-10-06 09:00  ·  boot"],
             scan.Files.Select(f => f.Title));
     }
 
@@ -73,6 +73,18 @@ public class LogScannerTests
         Assert.Equal("reportmate-20261007.log", file.Title);
         Assert.Equal(string.Empty, file.Folder);
     }
+
+    [Theory]
+    [InlineData(@"2026-10-07\153941", "2026-10-07 15:39:41")]
+    [InlineData(@"2026-10-07\1539", "2026-10-07 15:39")]
+    [InlineData(@"2026-10-07\1539-on-demand", "2026-10-07 15:39  ·  on-demand")]
+    [InlineData(@"2026-10-07\1539-help_2", "2026-10-07 15:39  ·  help (2)")]
+    [InlineData(@"2026-10-07\1539_3", "2026-10-07 15:39 (3)")]
+    [InlineData("2026-10-07-223813", "2026-10-07 22:38:13")]
+    [InlineData("2026-10-07", "2026-10-07")]
+    [InlineData(@"packages\Firefox", "packages / Firefox")]
+    public void SessionFoldersReadAsTimes(string folder, string expected) =>
+        Assert.Equal(expected, LogFileEntry.SessionTitle(folder));
 
     [Theory]
     [InlineData(10, "10 B")]

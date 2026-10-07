@@ -7,7 +7,7 @@ namespace LogDeck.Core.Modules;
 /// patterns below follow each tool's own log writer:
 ///
 ///   BootstrapMate  logs\yyyy-MM-dd\HHmmss\bootstrap.log, events.jsonl
-///   ReportMate     logs\reportmate-yyyyMMdd.log (daily), logs\yyyy-MM-dd-HHmmss\transmission_*.json
+///   ReportMate     logs\reportmate-yyyyMMdd.log (daily), logs\yyyy-MM-dd-HHmmss\*.json (sent payloads)
 ///   Cimian         logs\yyyy-MM-dd\HHmm\install.log, events.jsonl; logs\installs, packages, selfupdate
 ///   StartSet       logs\yyyy-MM-dd\HHmm-runtype\startset.log, events.jsonl
 ///   Crypt escrow   logs\yyyy-MM-dd\crypt-escrow.log, events.jsonl (one folder per day)
@@ -60,7 +60,7 @@ public static class ToolCatalog
             Sources:
             [
                 new LogSource("runs", "Run log", $@"{ProgramData}\ManagedReports\logs", ["*.log"]),
-                new LogSource("transmissions", "Transmissions", $@"{ProgramData}\ManagedReports\logs", ["transmission_*.json"], Depth: 1),
+                new LogSource("transmissions", "Transmissions", $@"{ProgramData}\ManagedReports\logs", ["transmission_*.json", "unified_payload_*.json"], Depth: 1),
                 new LogSource("cache", "Collected data", $@"{ProgramData}\ManagedReports\cache", ["*.json"], Depth: 1),
             ],
             SupportPaths:

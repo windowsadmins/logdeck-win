@@ -23,6 +23,10 @@ public static partial class ReleaseVersion
             match.Groups[4].Value.PadLeft(4, '0'));
     }
 
+    /// <summary>True for a YYYY.M.D.HHMM release version, with or without a +sha suffix.</summary>
+    public static bool IsDateVersion(string? version) =>
+        version is not null && DateVersion().IsMatch(version.Split('+')[0].Trim());
+
     [GeneratedRegex(@"^(\d{4})\.(\d{1,2})\.(\d{1,2})\.(\d{1,4})$")]
     private static partial Regex DateVersion();
 }

@@ -1,0 +1,9 @@
+product:
+  name: LogDeck
+  version: ${TIMESTAMP}
+  developer: Windows Admins Open Source
+  identifier: com.github.windowsadmins.logdeck
+  description: One place to view the local logs of Windows management tools.
+signing_certificate: ${SIGNING_CERT_CN}
+postinstall_action: none
+install_location: 'C:\Program Files\LogDeck'

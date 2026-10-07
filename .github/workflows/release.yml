@@ -1,0 +1,182 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  TZ: 'America/Vancouver'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v5
+        with:
+          path: ~\.nuget\packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', '**/Directory.Build.props', '**/Directory.Packages.props') }}
+
+      # Tags are vYYYY.MM.DD.HHMM; the version is the tag without its v.
+      - name: Derive version from tag
+        id: version
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          $version = $env:TAG -replace '^v',''
+          if ($version -notmatch '^\d{4}\.\d{2}\.\d{2}\.\d{4}$') { throw "Tag $env:TAG is not vYYYY.MM.DD.HHMM" }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Test
+        run: dotnet test tests/LogDeck.Tests/LogDeck.Tests.csproj --configuration Release --verbosity minimal
+
+      - name: Build (unsigned)
+        shell: pwsh
+        run: .\build.ps1 -Version '${{ steps.version.outputs.version }}' -Zip
+
+      # Deployment tools compare file versions with what is installed, so every build must
+      # carry the tag's version.
+      - name: Check file versions
+        shell: pwsh
+        run: |
+          $parts = '${{ steps.version.outputs.version }}'.Split('.') | ForEach-Object { [int]$_ }
+          $expected = [version]::new($parts[0], $parts[1], $parts[2], $parts[3])
+          foreach ($arch in @('x64', 'arm64')) {
+            $actual = [version](Get-Item -LiteralPath "dist/$arch/LogDeck.exe").VersionInfo.FileVersion
+            if ($actual -ne $expected) { throw "dist/$arch/LogDeck.exe is $actual, expected $expected" }
+            "dist/$arch/LogDeck.exe $actual"
+          }
+
+      # cimipkg packages a release from logdeck-<arch>.zip as the payload, laid out as the
+      # install folder C:\Program Files\LogDeck, plus build-info.yaml and scripts/ read from
+      # the repository at this tag.
+      - name: Check release zips
+        shell: pwsh
+        run: |
+          foreach ($required in 'build-info.yaml', 'scripts/preinstall.ps1', 'scripts/postinstall.ps1', 'scripts/uninstall.ps1') {
+            if (-not (Test-Path $required)) { throw "$required is missing at this tag" }
+          }
+          New-Item -ItemType Directory -Path release -Force | Out-Null
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          foreach ($arch in @('x64', 'arm64')) {
+            $zipPath = "dist/logdeck-$arch.zip"
+            $zip = [System.IO.Compression.ZipFile]::OpenRead((Resolve-Path $zipPath).Path)
+            try {
+              foreach ($entry in 'LogDeck.exe', 'resources.pri', 'Assets/LogDeck.ico') {
+                if (-not ($zip.Entries | Where-Object { $_.FullName.Replace('\', '/') -eq $entry })) { throw "logdeck-$arch.zip is missing $entry" }
+              }
+              "logdeck-$arch.zip: $($zip.Entries.Count) entries"
+            } finally { $zip.Dispose() }
+            Copy-Item $zipPath release/ -Force
+          }
+
+      - name: Download cimipkg
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Path tools -Force | Out-Null
+          $downloaded = $false
+          try {
+            gh release download --repo windowsadmins/cimian-pkg --pattern "cimipkg-win-x64.zip" --dir tools 2>$null
+            if (Test-Path tools/cimipkg-win-x64.zip) {
+              Expand-Archive -Path tools/cimipkg-win-x64.zip -DestinationPath tools -Force
+              if (Test-Path tools/cimipkg.exe) { $downloaded = $true }
+            }
+          } catch {}
+          if (-not $downloaded) {
+            gh release download --repo windowsadmins/cimian-pkg --pattern "cimipkg.exe" --dir tools
+          }
+          if (-not (Test-Path tools/cimipkg.exe)) { throw "cimipkg download failed" }
+
+      - name: Build MSI + nupkg packages
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          foreach ($arch in @('x64', 'arm64')) {
+            $stagingDir = "staging-$arch"
+            New-Item -ItemType Directory -Path "$stagingDir/payload" -Force | Out-Null
+            New-Item -ItemType Directory -Path "$stagingDir/scripts" -Force | Out-Null
+            Copy-Item "dist/$arch/*" "$stagingDir/payload/" -Recurse -Force
+            Copy-Item "scripts/*.ps1" "$stagingDir/scripts/" -Force
+
+            # Releases are published unsigned, so drop signing_certificate rather than have
+            # cimipkg look for a certificate on the runner.
+            (Get-Content "build-info.yaml" -Raw) `
+              -replace '\$\{TIMESTAMP\}', $version `
+              -replace '(?m)^\s*signing_certificate:.*\r?\n?', '' |
+              Set-Content "$stagingDir/build-info.yaml" -Encoding UTF8
+
+            & .\tools\cimipkg.exe --verbose $stagingDir
+            if ($LASTEXITCODE -ne 0) { throw "cimipkg MSI build failed for $arch" }
+            $msi = Get-ChildItem "$stagingDir/build/*.msi" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $msi) { throw "cimipkg produced no MSI for $arch" }
+            Move-Item $msi.FullName "release/LogDeck-$arch-$version.msi" -Force
+
+            & .\tools\cimipkg.exe --nupkg --verbose $stagingDir
+            if ($LASTEXITCODE -ne 0) { throw "cimipkg nupkg build failed for $arch" }
+            $nupkg = Get-ChildItem "$stagingDir/build/*.nupkg" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($nupkg) { Move-Item $nupkg.FullName "release/LogDeck-$arch-$version.nupkg" -Force }
+          }
+          Get-ChildItem release | Format-Table Name, Length
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          $tag = $env:TAG
+          $title = "LogDeck $tag"
+          $dotnet = (dotnet --version).Trim()
+          $os = (Get-CimInstance Win32_OperatingSystem).Caption.Trim()
+          $runUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
+
+          $buildInfo = @"
+          ## Build info
+
+          This release was built with .NET SDK $dotnet on $os, via a GitHub Actions workflow here: $runUrl. It is provided **unsigned** — see signing instructions at the bottom.
+
+          ``logdeck-<arch>.zip`` is the install folder, ``C:\Program Files\LogDeck``; the MSI and .nupkg install the same files and add an all-users Start menu shortcut.
+          "@
+
+          $signing = @"
+          ## Signing for enterprise deployment
+
+          Sign the binaries with your organization's code signing certificate before distribution:
+
+          ``````powershell
+          `$cert = "Your Certificate Name"
+          `$timestampUrl = "http://timestamp.digicert.com"
+
+          Expand-Archive -Path logdeck-x64.zip -DestinationPath LogDeck
+          Get-ChildItem LogDeck -Recurse -Include *.exe,*.dll | ForEach-Object {
+              signtool sign /fd SHA256 /tr `$timestampUrl /td SHA256 /n `$cert `$_.FullName
+          }
+          ``````
+
+          Built from commit ``$env:GITHUB_SHA``.
+          "@
+
+          $autoNotes = (gh api -X POST "repos/$env:GITHUB_REPOSITORY/releases/generate-notes" -f tag_name=$tag --jq .body) -join "`n"
+          $autoNotes = $autoNotes -replace ' by @[\w-]+ in ', ' in '
+          $autoNotes = ($autoNotes -split "`n" | Where-Object { $_ -notmatch '^#+ New Contributors' -and $_ -notmatch 'made their first contribution' }) -join "`n"
+          $notes = "$buildInfo`n`n$autoNotes`n`n$signing"
+
+          $artifacts = Get-ChildItem -Path release -File | ForEach-Object { $_.FullName }
+          if ($artifacts.Count -eq 0) { throw 'No artifacts to upload' }
+          gh release create $tag @artifacts --title $title --notes $notes

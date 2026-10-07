@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>preview</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <!-- Lets the Core library and its tests build on a machine that is not Windows. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+
+    <Product>LogDeck</Product>
+    <Company>Windows Admins Open Source</Company>
+    <Copyright>Copyright © Windows Admins Open Source 2026</Copyright>
+    <Description>One place to view the local logs of Windows management tools</Description>
+  </PropertyGroup>
+</Project>

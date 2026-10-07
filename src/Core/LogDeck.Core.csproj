@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The tool modules, log discovery, tailing and line classification. No UI, so it is
+       tested on its own and the app stays a thin view over it. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>LogDeck.Core</RootNamespace>
+    <AssemblyName>LogDeck.Core</AssemblyName>
+  </PropertyGroup>
+
+</Project>
